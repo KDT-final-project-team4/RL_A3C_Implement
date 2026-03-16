@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper Review: A3C (Asynchronous Advantage Actor-Critic)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+            overflow: hidden;
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .slide {
+            display: none;
+            height: 100vh;
+            width: 100vw;
+            padding: 1.5rem;
+            animation: slideIn 0.4s ease-out;
+        }
+
+        .slide.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            border-radius: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            flex-grow: 1;
+            padding: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow-y: auto;
+        }
+
+        .progress-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.05);
+            border-top-left-radius: 1.5rem;
+            border-top-right-radius: 1.5rem;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            /* A3C Theme: Emerald - Teal - Blue */
+            background: linear-gradient(90deg, #10b981, #14b8a6, #3b82f6);
+            transition: width 0.3s ease;
+        }
+
+        .nav-btn {
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 0.75rem;
+            border-radius: 9999px;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+        }
+
+        .nav-btn:hover {
+            background: #f8fafc;
+            transform: scale(1.1);
+            color: #0f172a;
+        }
+
+        .native-graphic {
+            background: #f1f5f9;
+            border-radius: 1rem;
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+            margin: auto;
+            width: 100%;
+        }
+
+        .glass-card::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .glass-card::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="presentation-container">
+        <!-- 슬라이드 1: 타이틀 -->
+        <div class="slide active" data-slide="1">
+            <div class="glass-card justify-center items-center text-center">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 5%;"></div>
+                </div>
+                <div
+                    class="mb-8 px-6 py-2 bg-teal-100 border border-teal-200 rounded-full text-teal-800 text-lg font-extrabold uppercase tracking-widest shadow-sm">
+                    DeepMind Paper Review</div>
+                <h1
+                    class="text-8xl font-extrabold mb-6 tracking-tight leading-tight text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-blue-600 pb-2">
+                    A3C
+                </h1>
+                <p class="text-2xl text-gray-500 font-extrabold mb-8 tracking-widest uppercase">Asynchronous Methods for
+                    Deep Reinforcement Learning</p>
+                <p
+                    class="text-xl text-gray-700 max-w-4xl mb-12 leading-relaxed font-bold bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+                    "수많은 요원(Worker)들을 파견하여 경험을 모아라!"<br>메모리를 잡아먹는 Replay Buffer를 박살내버린 비동기 강화학습의 전설
+                </p>
+
+                <div
+                    class="w-full max-w-3xl native-graphic min-h-[240px] py-10 bg-gray-50 border-gray-200 flex items-center justify-center gap-10">
+                    <div class="text-center flex flex-col items-center">
+                        <span class="text-7xl drop-shadow-md">🧠</span>
+                        <p
+                            class="text-sm mt-4 font-extrabold text-blue-600 bg-blue-50 px-4 py-2 border border-blue-200 rounded-full shadow-sm">
+                            Global Brain</p>
+                    </div>
+                    <span class="text-5xl font-extrabold text-emerald-500 animate-pulse">⚡</span>
+                    <div class="flex flex-col gap-2">
+                        <div
+                            class="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200 flex items-center gap-2">
+                            <span class="text-2xl">🤖</span><span class="font-bold text-xs text-gray-600">Worker
+                                1</span></div>
+                        <div
+                            class="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200 flex items-center gap-2 transform translate-x-4">
+                            <span class="text-2xl">🤖</span><span class="font-bold text-xs text-gray-600">Worker
+                                2</span></div>
+                        <div
+                            class="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-200 flex items-center gap-2">
+                            <span class="text-2xl">🤖</span><span class="font-bold text-xs text-gray-600">Worker
+                                3</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 2: 목차 -->
+        <div class="slide" data-slide="2">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 10%;"></div>
+                </div>
+                <h2 class="text-4xl font-extrabold mb-10 text-gray-800 border-b-2 border-gray-100 pb-4">Table of
+                    Contents</h2>
+                <div class="grid grid-cols-2 gap-12">
+                    <div class="space-y-4">
+                        <h3
+                            class="text-2xl font-extrabold text-emerald-700 bg-emerald-50 px-4 py-2 rounded-lg inline-block">
+                            1. Motivation & Background</h3>
+                        <ul class="space-y-2 ml-4 text-gray-700 font-bold text-base">
+                            <li class="text-blue-600">03. 핵심 수학 기호 및 용어 정리 (Terminology)</li>
+                            <li>04. DQN의 치명적인 한계 (Experience Replay)</li>
+                            <li>05. 딥마인드의 발상 전환: "경험 재생을 없애자"</li>
+                            <li>06. 직관적 비유: 미로 탐험가와 개미 군단</li>
+                        </ul>
+                        <h3
+                            class="text-2xl font-extrabold text-teal-700 bg-teal-50 px-4 py-2 rounded-lg inline-block mt-4">
+                            2. The Asynchronous Framework</h3>
+                        <ul class="space-y-2 ml-4 text-gray-700 font-bold text-base">
+                            <li>07. A3C 아키텍처 개요 (Global & Local)</li>
+                            <li>08. 비동기(Asynchronous) 업데이트의 매력</li>
+                            <li>09. Lock-free 최적화 (Hogwild! 알고리즘)</li>
+                            <li>10. 왜 A'3'C 인가? (Asynchronous, Advantage, AC)</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-4">
+                        <h3 class="text-2xl font-extrabold text-blue-700 bg-blue-50 px-4 py-2 rounded-lg inline-block">
+                            3. Deep Dive into A3C Math</h3>
+                        <ul class="space-y-2 ml-4 text-gray-700 font-bold text-base">
+                            <li>11. 1-Step의 한계와 n-Step Return의 도입</li>
+                            <li>12. n-Step Return 시각화 및 수식</li>
+                            <li>13. A3C의 3가지 Loss Function 완벽 해부</li>
+                            <li>14. Entropy Bonus: 탐험(Exploration)의 강제</li>
+                            <li>15. Worker의 학습 루프 (Step-by-step)</li>
+                        </ul>
+                        <h3
+                            class="text-2xl font-extrabold text-indigo-700 bg-indigo-50 px-4 py-2 rounded-lg inline-block mt-4">
+                            4. Experiments & Legacy</h3>
+                        <ul class="space-y-2 ml-4 text-gray-700 font-bold text-base">
+                            <li>16. 멀티 코어 CPU의 승리 (GPU 불필요)</li>
+                            <li>17. 벤치마크: Atari 2600 (DQN과의 비교)</li>
+                            <li>18. 3D Labyrinth 및 연속 제어(Continuous) 정복</li>
+                            <li>19. 스케일링의 마법 (Linear Speedup)</li>
+                            <li>20. A3C에서 A2C로의 진화 및 결론</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 3: 용어 정리 -->
+        <div class="slide" data-slide="3">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 15%;"></div>
+                </div>
+                <div class="mb-4 text-emerald-600 font-bold text-lg">Prerequisite</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">03. 핵심 수학 기호 및 용어 사전 (Terminology)</h2>
+                <p class="text-gray-700 font-bold mb-4">A3C 논문의 수식을 이해하기 위해 반드시 알아야 할 핵심 변수들입니다.</p>
+                <div class="grid grid-cols-3 gap-6 h-full items-start mt-2">
+                    <!-- Environment -->
+                    <div class="bg-white p-6 rounded-2xl border-t-8 border-emerald-400 shadow-md">
+                        <h4 class="font-extrabold text-emerald-800 text-xl mb-4 border-b border-gray-200 pb-2">환경 & 상호작용
+                        </h4>
+                        <ul class="space-y-5 text-sm font-medium text-gray-700">
+                            <li class="flex items-center"><strong
+                                    class="text-lg bg-gray-100 px-2 py-1 rounded border border-gray-200 mr-3 font-mono shadow-sm w-12 text-center">$s_t$</strong>
+                                <strong>상태 (State):</strong> 에이전트가 관찰하는 화면</li>
+                            <li class="flex items-center"><strong
+                                    class="text-lg bg-gray-100 px-2 py-1 rounded border border-gray-200 mr-3 font-mono shadow-sm w-12 text-center">$a_t$</strong>
+                                <strong>행동 (Action):</strong> 에이전트의 선택</li>
+                            <li class="flex items-center"><strong
+                                    class="text-lg bg-gray-100 px-2 py-1 rounded border border-gray-200 mr-3 font-mono shadow-sm w-12 text-center">$r_{t}$</strong>
+                                <strong>보상 (Reward):</strong> 행동 직후 받는 즉각적 점수</li>
+                            <li class="flex items-center"><strong
+                                    class="text-xl bg-emerald-50 px-2 py-1 rounded border border-emerald-200 mr-3 font-mono text-emerald-600 shadow-sm w-12 text-center">$\gamma$</strong>
+                                <strong class="text-emerald-700">할인율 (Gamma):</strong> 미래 보상의 현재 가치</li>
+                        </ul>
+                    </div>
+
+                    <!-- Networks -->
+                    <div
+                        class="bg-white p-6 rounded-2xl border-t-8 border-teal-500 shadow-lg transform scale-105 relative z-10">
+                        <h4 class="font-extrabold text-teal-800 text-xl mb-4 border-b border-gray-200 pb-2">에이전트의 뇌
+                            (신경망)</h4>
+                        <ul class="space-y-5 text-sm font-medium text-gray-700">
+                            <li class="flex items-start"><strong
+                                    class="text-lg bg-teal-50 px-2 py-1 rounded border border-teal-200 mr-3 font-mono text-teal-700 shadow-sm w-12 text-center">$\pi_\theta$</strong>
+                                <span><strong>정책 (Policy):</strong> Actor 네트워크.<br>상태 $s$에서 행동 $a$를 할 확률.<br>($\theta$:
+                                    신경망 파라미터)</span></li>
+                            <li class="flex items-start"><strong
+                                    class="text-lg bg-teal-50 px-2 py-1 rounded border border-teal-200 mr-3 font-mono text-teal-700 shadow-sm w-12 text-center">$V_{\theta_v}$</strong>
+                                <span><strong>가치 (Value):</strong> Critic 네트워크.<br>상태 $s$의 평균 기대 점수.<br>($\theta_v$: 가치망
+                                    파라미터)</span></li>
+                            <li class="flex items-start"><strong
+                                    class="text-lg bg-gray-100 px-2 py-1 rounded border border-gray-200 mr-3 font-mono shadow-sm w-12 text-center">$R$</strong>
+                                <span><strong>누적 보상 (Return):</strong> n-step 후의 미래 가치까지 포함한 총합 추정치.</span></li>
+                        </ul>
+                    </div>
+
+                    <!-- Metrics -->
+                    <div class="bg-white p-6 rounded-2xl border-t-8 border-blue-500 shadow-md">
+                        <h4 class="font-extrabold text-blue-800 text-xl mb-4 border-b border-gray-200 pb-2">학습 지표</h4>
+                        <ul class="space-y-5 text-sm font-medium text-gray-700">
+                            <li class="flex items-start"><strong
+                                    class="text-lg bg-blue-50 px-2 py-1 rounded border border-blue-200 mr-3 font-mono text-blue-700 shadow-sm w-12 text-center">$A_t$</strong>
+                                <span><strong>어드밴티지 (Advantage):</strong> 특정 행동이 평균 기대치($V$)보다 얼마나 더 좋은지.</span></li>
+                            <li class="flex items-start"><strong
+                                    class="text-xl bg-blue-50 px-2 py-1 rounded border border-blue-200 mr-3 font-mono text-blue-700 shadow-sm w-12 text-center">$H$</strong>
+                                <span><strong class="text-blue-600">엔트로피 (Entropy):</strong> 정책의 무작위성(불확실성). 클수록 탐험을 많이
+                                    함.</span></li>
+                            <li class="flex items-center"><strong
+                                    class="text-xl bg-gray-100 px-2 py-1 rounded border border-gray-200 mr-3 font-mono shadow-sm w-12 text-center">$\nabla$</strong>
+                                <strong>기울기 (Gradient):</strong> 파라미터 업데이트 방향.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== PART 1: Motivation ==================== -->
+
+        <!-- 슬라이드 4: DQN의 한계 -->
+        <div class="slide" data-slide="4">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 20%;"></div>
+                </div>
+                <div class="mb-4 text-emerald-600 font-bold text-lg">1. Motivation & Background</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">04. DQN의 치명적인 한계: Experience Replay</h2>
+                <div class="grid grid-cols-2 gap-10 h-full items-center">
+                    <div class="space-y-6">
+                        <p class="text-xl text-gray-700 leading-relaxed font-bold">
+                            DQN은 데이터를 모아뒀다 섞어 쓰는 <strong>Experience Replay (경험 재생)</strong> 기법으로 강화학습의 역사를 썼습니다. 하지만
+                            치명적인 부작용이 있었습니다.
+                        </p>
+                        <div class="bg-red-50 border-l-8 border-red-500 p-6 rounded-r-2xl shadow-sm space-y-3">
+                            <h4 class="font-extrabold text-red-800 text-lg">메모리 먹는 하마 & Off-policy의 강제</h4>
+                            <p class="text-base text-gray-700 font-medium leading-relaxed">
+                                수백만 개의 이미지 프레임을 저장해야 하므로 <strong>엄청난 메모리 용량</strong>이 필요했습니다.<br>
+                                게다가 옛날 정책(과거의 나)이 모은 데이터를 사용해야 하므로, 반드시 <strong>Off-policy 알고리즘(Q-learning 등)만
+                                    사용</strong>해야 한다는 심각한 제약이 있었습니다.
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="native-graphic min-h-[350px] relative bg-white border border-gray-200 shadow-md p-8 rounded-3xl flex flex-col justify-center items-center gap-6">
+                        <div
+                            class="w-[80%] h-32 border-4 border-gray-400 bg-gray-100 rounded-xl shadow-inner flex flex-wrap gap-2 p-3 justify-center items-center relative overflow-hidden">
+                            <span
+                                class="absolute -top-1 left-1/2 transform -translate-x-1/2 bg-red-500 text-white font-extrabold px-3 py-1 rounded-b shadow-sm text-xs whitespace-nowrap animate-pulse">메모리
+                                가득 참! (100만 개)</span>
+                            <div class="text-3xl bg-white p-1 rounded shadow-sm">🍎</div>
+                            <div class="text-3xl bg-white p-1 rounded shadow-sm">🧱</div>
+                            <div class="text-3xl bg-white p-1 rounded shadow-sm">👾</div>
+                            <div class="text-3xl bg-white p-1 rounded shadow-sm opacity-50">과거</div>
+                            <div class="text-3xl bg-white p-1 rounded shadow-sm opacity-30">과거</div>
+                            <div class="text-3xl bg-white p-1 rounded shadow-sm opacity-10">...</div>
+                        </div>
+                        <div
+                            class="bg-gray-800 text-white px-6 py-3 rounded-full font-bold text-sm shadow-md text-center w-full">
+                            "데이터의 시간적 연관성(Correlation)을 깨기 위해<br>꼭 이렇게 무거운 방법을 써야만 할까?"
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 5: 딥마인드의 발상 전환 -->
+        <div class="slide" data-slide="5">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 25%;"></div>
+                </div>
+                <div class="mb-4 text-emerald-600 font-bold text-lg">1. Motivation & Background</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">05. 딥마인드의 발상 전환: "경험 재생을 없애자"</h2>
+                <div class="grid grid-cols-2 gap-10 items-center h-full">
+                    <div class="space-y-6">
+                        <p
+                            class="text-xl text-gray-700 leading-relaxed font-bold bg-emerald-50 p-6 rounded-2xl border border-emerald-200 shadow-sm">
+                            "한 명이 오랫동안 데이터를 모아서 섞는 대신, <br><span class="text-emerald-700 text-2xl font-extrabold">여러 명이
+                                동시에 각자 다른 게임을 플레이</span>하게 만들면 어떨까?"
+                        </p>
+                        <div class="bg-white p-6 border border-gray-200 rounded-2xl shadow-sm space-y-4">
+                            <p class="text-base text-gray-600 font-medium leading-relaxed">
+                                에이전트 A는 미로의 왼쪽 구석을 돌고 있고, 에이전트 B는 오른쪽 구석을 돌고 있습니다. <br><br>
+                                이들이 <strong>실시간으로 보내오는 데이터들은 서로 완전히 다른 상황</strong>이므로, 굳이 Replay Buffer에 모았다가 섞을 필요 없이
+                                시간적 연관성(Correlation)이 자연스럽게 깨집니다!
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="native-graphic h-full min-h-[350px] relative p-6 bg-white border border-gray-200 shadow-md flex items-center justify-center rounded-3xl">
+                        <div class="relative w-full h-full flex flex-col justify-center items-center">
+                            <div
+                                class="w-24 h-24 bg-gray-800 rounded-full flex items-center justify-center text-white text-3xl shadow-lg z-20 font-extrabold">
+                                Brain</div>
+
+                            <!-- Worker A -->
+                            <div class="absolute top-[10%] left-[10%] flex flex-col items-center">
+                                <div class="bg-blue-100 border-2 border-blue-400 p-2 rounded-lg text-2xl shadow-sm">⬅️👾
+                                </div>
+                                <span class="text-[10px] font-bold text-gray-500 mt-1">"난 왼쪽 탐험 중"</span>
+                            </div>
+                            <!-- Worker B -->
+                            <div class="absolute top-[10%] right-[10%] flex flex-col items-center">
+                                <div class="bg-rose-100 border-2 border-rose-400 p-2 rounded-lg text-2xl shadow-sm">👾➡️
+                                </div>
+                                <span class="text-[10px] font-bold text-gray-500 mt-1">"난 오른쪽 탐험 중"</span>
+                            </div>
+                            <!-- Worker C -->
+                            <div class="absolute bottom-[10%] left-[25%] flex flex-col items-center">
+                                <div
+                                    class="bg-emerald-100 border-2 border-emerald-400 p-2 rounded-lg text-2xl shadow-sm">
+                                    👾⬆️</div>
+                                <span class="text-[10px] font-bold text-gray-500 mt-1">"난 위쪽 탐험 중"</span>
+                            </div>
+
+                            <!-- Arrows -->
+                            <svg class="absolute inset-0 w-full h-full pointer-events-none z-10">
+                                <path d="M 25% 25% L 40% 40%" stroke="#9ca3af" stroke-width="3"
+                                    stroke-dasharray="4,4" />
+                                <path d="M 75% 25% L 60% 40%" stroke="#9ca3af" stroke-width="3"
+                                    stroke-dasharray="4,4" />
+                                <path d="M 35% 75% L 45% 60%" stroke="#9ca3af" stroke-width="3"
+                                    stroke-dasharray="4,4" />
+                            </svg>
+                        </div>
+                        <div
+                            class="absolute bottom-4 bg-emerald-100 text-emerald-800 px-6 py-2 rounded-full font-bold text-sm shadow-sm border border-emerald-300">
+                            Replay Buffer 폐기! On-policy 학습 가능! 🎉
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 6: 직관적 비유 -->
+        <div class="slide" data-slide="6">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 30%;"></div>
+                </div>
+                <div class="mb-4 text-emerald-600 font-bold text-lg">1. Motivation & Background</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">06. 직관적 비유: 미로 탐험가와 개미 군단</h2>
+                <div class="grid grid-cols-2 gap-10 items-center h-full">
+                    <div class="space-y-6">
+                        <div class="bg-white p-6 border-l-8 border-gray-400 rounded-r-2xl shadow-sm space-y-3">
+                            <h4 class="font-extrabold text-gray-800 text-xl">DQN (나홀로 탐험가)</h4>
+                            <p class="text-base text-gray-600 font-medium leading-relaxed">
+                                혼자서 미로를 돌아다니며 지도를 그립니다. 한 번에 한 길밖에 못 가기 때문에 지도를 다 그리려면 엄청난 시간과 기억력(Replay Memory)이
+                                필요합니다.
+                            </p>
+                        </div>
+                        <div
+                            class="bg-teal-50 p-6 border-l-8 border-teal-500 rounded-r-2xl shadow-sm space-y-3 transform scale-105">
+                            <h4 class="font-extrabold text-teal-900 text-xl">A3C (개미 군단)</h4>
+                            <p class="text-base text-gray-800 font-bold leading-relaxed">
+                                수십 마리의 개미(Worker)를 미로의 각기 다른 입구에 동시에 풀어버립니다. 개미들은 각자 겪은 일을 텔레파시로 여왕개미(Global Net)에게
+                                실시간으로 보고합니다. 미로 지도가 순식간에 완성됩니다!
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="native-graphic h-full min-h-[350px] relative p-8 bg-white border border-gray-200 shadow-md rounded-3xl flex flex-col justify-center items-center gap-8">
+                        <div class="flex justify-around w-full items-center">
+                            <!-- DQN -->
+                            <div class="flex flex-col items-center">
+                                <div class="text-7xl drop-shadow-md">🚶‍♂️</div>
+                                <span
+                                    class="bg-gray-100 px-3 py-1 rounded text-sm font-bold mt-4 shadow-sm border border-gray-300">느리고
+                                    고독함</span>
+                            </div>
+                            <span class="text-4xl text-gray-300 font-extrabold">VS</span>
+                            <!-- A3C -->
+                            <div class="flex flex-col items-center">
+                                <div class="relative w-32 h-32 flex items-center justify-center">
+                                    <div class="absolute top-0 text-4xl">🐜</div>
+                                    <div class="absolute bottom-0 left-0 text-4xl">🐜</div>
+                                    <div class="absolute bottom-0 right-0 text-4xl">🐜</div>
+                                    <div
+                                        class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-5xl">
+                                        👑</div>
+                                </div>
+                                <span
+                                    class="bg-teal-100 text-teal-800 px-3 py-1 rounded text-sm font-extrabold mt-4 shadow-md border border-teal-300">빠르고
+                                    다양함!</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== PART 2: The Asynchronous Framework ==================== -->
+
+        <!-- 슬라이드 7: A3C 아키텍처 개요 -->
+        <div class="slide" data-slide="7">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 35%;"></div>
+                </div>
+                <div class="mb-4 text-teal-600 font-bold text-lg">2. The Asynchronous Framework</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">07. A3C 아키텍처 개요 (Global & Local)</h2>
+                <div class="flex flex-col gap-6 h-full justify-center items-center">
+                    <p
+                        class="text-xl text-gray-700 font-bold text-center w-full bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                        A3C는 하나의 '글로벌 네트워크'와 여러 개의 '로컬 워커'들로 구성됩니다.
+                    </p>
+
+                    <div
+                        class="native-graphic w-full flex-grow bg-slate-50 border-2 border-slate-200 p-8 rounded-3xl flex flex-col justify-between items-center shadow-inner relative">
+
+                        <!-- Global Network -->
+                        <div
+                            class="bg-blue-600 border-4 border-blue-400 px-10 py-5 rounded-2xl shadow-lg z-20 text-center w-[60%]">
+                            <h4 class="font-extrabold text-white text-2xl tracking-widest">Global Network ($\theta,
+                                \theta_v$)</h4>
+                            <span class="text-xs text-blue-200 font-medium block mt-1">모든 워커의 지식이 모이는 궁극의 뇌</span>
+                        </div>
+
+                        <!-- Sync and Gradient Arrows -->
+                        <div class="w-full flex justify-between px-16 -my-4 z-10">
+                            <div class="flex flex-col items-center">
+                                <span
+                                    class="text-xs font-bold text-blue-600 bg-white px-2 py-0.5 rounded border border-blue-200">Weight
+                                    ⬇</span>
+                                <span class="text-3xl text-gray-400">↕️</span>
+                                <span
+                                    class="text-xs font-bold text-red-500 bg-white px-2 py-0.5 rounded border border-red-200">Gradient
+                                    ⬆</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <span
+                                    class="text-xs font-bold text-blue-600 bg-white px-2 py-0.5 rounded border border-blue-200">Weight
+                                    ⬇</span>
+                                <span class="text-3xl text-gray-400">↕️</span>
+                                <span
+                                    class="text-xs font-bold text-red-500 bg-white px-2 py-0.5 rounded border border-red-200">Gradient
+                                    ⬆</span>
+                            </div>
+                            <div class="flex flex-col items-center">
+                                <span
+                                    class="text-xs font-bold text-blue-600 bg-white px-2 py-0.5 rounded border border-blue-200">Weight
+                                    ⬇</span>
+                                <span class="text-3xl text-gray-400">↕️</span>
+                                <span
+                                    class="text-xs font-bold text-red-500 bg-white px-2 py-0.5 rounded border border-red-200">Gradient
+                                    ⬆</span>
+                            </div>
+                        </div>
+
+                        <!-- Local Workers -->
+                        <div class="w-full flex justify-between z-20">
+                            <div class="bg-white border-2 border-gray-300 p-4 rounded-xl text-center shadow-md w-[30%]">
+                                <h5 class="font-extrabold text-gray-800 text-lg">Worker 1</h5>
+                                <span class="text-[10px] text-gray-500 font-bold">Env Instance 1</span>
+                            </div>
+                            <div class="bg-white border-2 border-gray-300 p-4 rounded-xl text-center shadow-md w-[30%]">
+                                <h5 class="font-extrabold text-gray-800 text-lg">Worker 2</h5>
+                                <span class="text-[10px] text-gray-500 font-bold">Env Instance 2</span>
+                            </div>
+                            <div class="bg-white border-2 border-gray-300 p-4 rounded-xl text-center shadow-md w-[30%]">
+                                <h5 class="font-extrabold text-gray-800 text-lg">Worker N</h5>
+                                <span class="text-[10px] text-gray-500 font-bold">Env Instance N</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 8: 비동기 업데이트 -->
+        <div class="slide" data-slide="8">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 40%;"></div>
+                </div>
+                <div class="mb-4 text-teal-600 font-bold text-lg">2. The Asynchronous Framework</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">08. 비동기(Asynchronous) 업데이트의 매력</h2>
+                <div class="grid grid-cols-2 gap-10 items-center h-full">
+                    <div class="space-y-6">
+                        <p
+                            class="text-xl text-gray-700 leading-relaxed font-bold bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                            워커들은 <strong>서로 눈치를 보지 않고 자기 마음대로</strong> 글로벌 네트워크를 업데이트합니다.
+                        </p>
+                        <div class="bg-teal-50 p-6 border-l-8 border-teal-500 rounded-r-2xl shadow-sm space-y-4">
+                            <p class="text-base text-gray-700 font-medium leading-relaxed">
+                                다른 워커가 학습을 끝낼 때까지 기다릴 필요가 없습니다. <br>
+                                워커 1이 게임 오버되어 업데이트를 날리는 동안, 워커 2는 계속 게임을 진행합니다. 이로 인해 <strong>병목 현상(Bottleneck)이 발생하지 않아
+                                    학습 속도가 비약적으로 상승</strong>합니다.
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="native-graphic h-full min-h-[350px] relative bg-white border border-gray-200 shadow-md p-6 rounded-3xl flex flex-col justify-center gap-6">
+                        <!-- Asynchronous Timeline -->
+                        <span class="font-extrabold text-gray-500 text-sm border-b-2 border-gray-200 pb-1 w-full">Time
+                            ➔</span>
+
+                        <div class="flex items-center w-full gap-4">
+                            <span class="font-bold text-sm text-gray-700 w-16">Worker 1</span>
+                            <div class="flex-grow h-6 bg-gray-100 rounded flex items-center overflow-hidden">
+                                <div class="h-full bg-blue-400 w-[20%] border-r-2 border-white"></div>
+                                <div
+                                    class="h-full bg-red-400 w-[5%] border-r-2 border-white flex justify-center items-center text-[8px] text-white font-bold">
+                                    Update!</div>
+                                <div class="h-full bg-blue-400 w-[40%] border-r-2 border-white"></div>
+                                <div
+                                    class="h-full bg-red-400 w-[5%] border-r-2 border-white flex justify-center items-center text-[8px] text-white font-bold">
+                                    Update!</div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center w-full gap-4">
+                            <span class="font-bold text-sm text-gray-700 w-16">Worker 2</span>
+                            <div class="flex-grow h-6 bg-gray-100 rounded flex items-center overflow-hidden">
+                                <div class="h-full bg-emerald-400 w-[40%] border-r-2 border-white"></div>
+                                <div
+                                    class="h-full bg-red-400 w-[5%] border-r-2 border-white flex justify-center items-center text-[8px] text-white font-bold">
+                                    Update!</div>
+                                <div class="h-full bg-emerald-400 w-[30%] border-r-2 border-white"></div>
+                            </div>
+                        </div>
+
+                        <div
+                            class="bg-gray-800 text-white px-6 py-2 rounded-full font-bold text-xs shadow-md mt-4 text-center">
+                            기다림(Wait)이 전혀 없는 논스톱 학습 파이프라인 🚂
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 9: Hogwild! -->
+        <div class="slide" data-slide="9">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 45%;"></div>
+                </div>
+                <div class="mb-4 text-teal-600 font-bold text-lg">2. The Asynchronous Framework</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">09. Lock-free 최적화 (Hogwild! 알고리즘)</h2>
+                <div class="grid grid-cols-2 gap-10 items-center h-full">
+                    <div class="space-y-6">
+                        <div class="bg-white p-6 border-l-8 border-rose-500 rounded-r-2xl shadow-sm space-y-3">
+                            <h4 class="font-extrabold text-rose-800 text-lg">충돌 위험? (Race Condition)</h4>
+                            <p class="text-base text-gray-700 font-medium leading-relaxed">
+                                원래 프로그래밍에서는 여러 스레드가 하나의 변수(Global Network)를 동시에 수정하면 데이터가 깨지므로 '자물쇠(Lock)'를 채웁니다. 하지만
+                                Lock을 걸면 속도가 느려집니다.
+                            </p>
+                        </div>
+                        <div
+                            class="bg-blue-50 p-6 border-l-8 border-blue-600 rounded-r-2xl shadow-sm space-y-3 transform scale-105">
+                            <h4 class="font-extrabold text-blue-900 text-lg">Hogwild! 기법의 도입</h4>
+                            <p class="text-base text-gray-800 font-bold leading-relaxed">
+                                A3C는 딥러닝의 특성(수많은 파라미터 중 소수만 업데이트됨)을 활용해 <strong>자물쇠(Lock)를 아예 없애버렸습니다.</strong> 가끔 충돌해서
+                                값이 조금 깨지더라도(Noise), 딥러닝 특유의 강건함 덕분에 무시하고 더 빠른 속도로 수렴해버립니다!
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="native-graphic h-full min-h-[350px] relative p-8 bg-gray-50 border border-gray-200 shadow-md rounded-3xl flex flex-col justify-center items-center gap-6">
+                        <div class="flex justify-around w-full items-center">
+                            <div class="flex flex-col items-center opacity-50">
+                                <div class="text-6xl drop-shadow-md">🔒</div>
+                                <span class="bg-gray-200 px-3 py-1 rounded text-xs font-bold mt-2">일반 멀티스레딩
+                                    (안전/느림)</span>
+                            </div>
+                            <span class="text-4xl text-gray-300 font-extrabold">VS</span>
+                            <div class="flex flex-col items-center transform scale-110">
+                                <div class="text-7xl drop-shadow-lg">🐗🔥</div>
+                                <span
+                                    class="bg-rose-100 text-rose-800 border border-rose-300 px-4 py-2 rounded-xl text-sm font-extrabold mt-2 shadow-sm">Hogwild!
+                                    (Lock-Free / 초고속)</span>
+                            </div>
+                        </div>
+                        <p class="text-center font-bold text-gray-500 text-sm mt-4">
+                            "약간의 노이즈는 오히려 학습(탐험)에 도움이 된다!"
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 10: 왜 A3C인가? -->
+        <div class="slide" data-slide="10">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 50%;"></div>
+                </div>
+                <div class="mb-4 text-teal-600 font-bold text-lg">2. The Asynchronous Framework</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">10. 왜 A'3'C 인가? 이름의 기원</h2>
+                <div class="flex flex-col gap-6 h-full justify-center items-center">
+                    <div class="grid grid-cols-1 w-full max-w-4xl gap-6">
+
+                        <div
+                            class="bg-white p-6 rounded-2xl border-l-8 border-teal-500 shadow-md flex items-center gap-6 transform translate-x-0 transition hover:translate-x-2">
+                            <div class="text-5xl font-extrabold text-teal-200">A</div>
+                            <div>
+                                <h4 class="font-extrabold text-teal-800 text-2xl mb-1">Asynchronous (비동기)</h4>
+                                <p class="text-gray-600 font-medium">여러 개의 워커(Agent)가 락(Lock) 없이 병렬로 동시에 환경과 상호작용하며
+                                    학습합니다.</p>
+                            </div>
+                        </div>
+
+                        <div
+                            class="bg-white p-6 rounded-2xl border-l-8 border-blue-500 shadow-md flex items-center gap-6 transform translate-x-4 transition hover:translate-x-6">
+                            <div class="text-5xl font-extrabold text-blue-200">A</div>
+                            <div>
+                                <h4 class="font-extrabold text-blue-800 text-2xl mb-1">Advantage (어드밴티지)</h4>
+                                <p class="text-gray-600 font-medium">절대적인 총 보상($R$)이 아닌, 평균 기대치 대비 얼마나 더 좋은지($Q-V$)를
+                                    사용하여 학습 분산을 줄입니다.</p>
+                            </div>
+                        </div>
+
+                        <div
+                            class="bg-white p-6 rounded-2xl border-l-8 border-indigo-500 shadow-md flex items-center gap-6 transform translate-x-8 transition hover:translate-x-10">
+                            <div class="text-5xl font-extrabold text-indigo-200">AC</div>
+                            <div>
+                                <h4 class="font-extrabold text-indigo-800 text-2xl mb-1">Actor-Critic (배우-평론가)</h4>
+                                <p class="text-gray-600 font-medium">행동을 결정하는 Actor와 그 행동을 평가하는 Critic 네트워크를 동시에 사용하여
+                                    빠르고 안정적으로 수렴합니다.</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== PART 3: Math Deep Dive ==================== -->
+
+        <!-- 슬라이드 11: 1-step vs n-step -->
+        <div class="slide" data-slide="11">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 55%;"></div>
+                </div>
+                <div class="mb-4 text-blue-600 font-bold text-lg">3. Deep Dive into A3C Math</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">11. 1-Step의 한계와 n-Step Return의 도입</h2>
+                <div class="grid grid-cols-2 gap-10 items-center h-full">
+                    <div class="space-y-6">
+                        <p
+                            class="text-xl text-gray-700 leading-relaxed font-bold bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                            미래를 예측할 때, 몇 발자국 앞까지 내다볼 것인가?
+                        </p>
+                        <div class="space-y-4">
+                            <div class="bg-gray-100 p-4 border-l-4 border-gray-400 rounded-r-xl shadow-sm">
+                                <h4 class="font-extrabold text-gray-800 text-base">1-Step TD (기존 방식)</h4>
+                                <p class="text-sm text-gray-700 mt-1 font-medium">바로 다음 스텝 1개만 보고 보상을 합산합니다.
+                                    분산(Variance)은 적지만 편향(Bias)이 심하고 보상 전파가 아주 느립니다.</p>
+                            </div>
+                            <div
+                                class="bg-blue-50 p-4 border-l-4 border-blue-500 rounded-r-xl shadow-sm transform scale-105">
+                                <h4 class="font-extrabold text-blue-800 text-base">n-Step Return (A3C 방식)</h4>
+                                <p class="text-sm text-gray-800 mt-1 font-bold"><strong>앞으로 n번(예: 5스텝) 동안 행동을 쭉
+                                        해보고</strong>, 그동안 받은 진짜 보상들을 더한 뒤 마지막에만 가치($V$) 예측치를 붙입니다. 보상 전파가 훨씬 빨라집니다!</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="native-graphic h-full min-h-[350px] relative bg-white border border-gray-200 shadow-md p-6 rounded-3xl flex items-center justify-center">
+                        <div class="flex flex-col gap-8 w-full px-4">
+                            <!-- 1-Step -->
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-xs text-gray-500 w-12">1-Step</span>
+                                <div
+                                    class="bg-emerald-400 w-8 h-8 rounded flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                                    $r_1$</div>
+                                <span class="text-gray-400 font-bold">+</span>
+                                <div
+                                    class="bg-red-400 w-16 h-8 rounded flex items-center justify-center text-white font-bold text-xs shadow-sm border-2 border-red-500 border-dashed">
+                                    $\gamma V(s_1)$</div>
+                            </div>
+
+                            <!-- n-Step -->
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-xs text-blue-600 w-12">n-Step<br>(A3C)</span>
+                                <div
+                                    class="bg-emerald-400 w-8 h-8 rounded flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                                    $r_1$</div>
+                                <div
+                                    class="bg-emerald-400 w-8 h-8 rounded flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                                    $r_2$</div>
+                                <span class="text-gray-400 font-bold">...</span>
+                                <div
+                                    class="bg-emerald-400 w-8 h-8 rounded flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                                    $r_n$</div>
+                                <span class="text-gray-400 font-bold">+</span>
+                                <div
+                                    class="bg-red-400 w-20 h-8 rounded flex items-center justify-center text-white font-bold text-xs shadow-sm border-2 border-red-500 border-dashed transform scale-110">
+                                    $\gamma^n V(s_n)$</div>
+                            </div>
+                        </div>
+                        <span class="absolute bottom-4 right-4 text-xs font-extrabold text-blue-500">
+                            더 많은 현실($r$)을 반영하여 예측의 정확도 향상!
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 12: n-Step 수식 -->
+        <div class="slide" data-slide="12">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 60%;"></div>
+                </div>
+                <div class="mb-4 text-blue-600 font-bold text-lg">3. Deep Dive into A3C Math</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">12. n-Step Return 수식과 Advantage</h2>
+                <div class="grid grid-cols-1 gap-6 h-full items-center">
+                    <p class="text-xl text-gray-700 font-bold px-4 text-center">
+                        n번의 스텝을 진행한 뒤, 목표 가치(Return)와 어드밴티지(Advantage)를 계산합니다.
+                    </p>
+
+                    <div
+                        class="bg-gray-800 p-8 rounded-3xl shadow-xl w-[95%] mx-auto relative overflow-hidden flex flex-col items-center justify-center gap-6">
+
+                        <!-- n-step Return -->
+                        <div class="w-full">
+                            <span
+                                class="text-emerald-400 font-bold mb-2 text-sm tracking-widest uppercase block text-center">n-step
+                                Return (목표 점수)</span>
+                            <div
+                                class="text-2xl overflow-x-auto w-full text-center py-2 font-mono font-bold tracking-wider text-white">
+                                $$ R_t = \sum_{i=0}^{k-1} \gamma^i r_{t+i} + \gamma^k V_{\theta_v}(s_{t+k}) $$
+                            </div>
+                        </div>
+
+                        <div class="border-b border-gray-600 w-[80%] my-2"></div>
+
+                        <!-- A3C Advantage -->
+                        <div class="w-full">
+                            <span
+                                class="text-blue-400 font-bold mb-2 text-sm tracking-widest uppercase block text-center">A3C
+                                Advantage Estimate</span>
+                            <div
+                                class="text-3xl overflow-x-auto w-full text-center py-2 font-mono font-bold tracking-wider text-white bg-gray-900 rounded-xl border border-gray-600 p-4">
+                                $$ A(s_t, a_t) = R_t - V_{\theta_v}(s_t) $$
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-blue-50 border-l-8 border-blue-500 p-5 rounded-r-xl shadow-sm w-[95%] mx-auto text-center">
+                        <p class="text-base text-gray-700 font-bold">
+                            "내가 n스텝 동안 직접 뛰어보고 예상한 <strong>진짜 목표 점수($R_t$)</strong>에서, 처음 출발할 때 평론가가 예상했던 <strong>기대
+                                점수($V(s_t)$)</strong>를 뺀 값"
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 13: 3가지 Loss -->
+        <div class="slide" data-slide="13">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 65%;"></div>
+                </div>
+                <div class="mb-4 text-blue-600 font-bold text-lg">3. Deep Dive into A3C Math</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">13. A3C의 3가지 Loss Function 완벽 해부</h2>
+                <div class="flex flex-col gap-6 h-full justify-center items-center">
+                    <p
+                        class="text-xl text-gray-700 font-bold text-center w-full bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                        워커(Worker)는 자신이 모은 경험(n-step)으로 다음 세 가지의 기울기(Gradient)를 계산하여 글로벌 뇌를 업데이트합니다.
+                    </p>
+
+                    <div
+                        class="bg-gray-800 p-8 rounded-3xl shadow-xl w-full relative flex flex-col items-center justify-center">
+                        <div
+                            class="text-xl text-white font-mono space-y-6 relative z-10 font-bold tracking-wide w-full flex flex-col items-center">
+
+                            <!-- Actor Loss -->
+                            <div
+                                class="flex items-center justify-between w-[90%] bg-gray-900 px-6 py-3 rounded-xl border border-gray-600 shadow-inner">
+                                <span class="text-teal-400 w-1/3">1. Policy Update<br><span
+                                        class="text-[10px] text-gray-400">(Actor)</span></span>
+                                <span class="w-2/3 text-right">$$ d\theta \leftarrow d\theta + \nabla_{\theta'} \log
+                                    \pi_{\theta'}(a_t|s_t) \cdot A(s_t, a_t) $$</span>
+                            </div>
+
+                            <!-- Critic Loss -->
+                            <div
+                                class="flex items-center justify-between w-[90%] bg-gray-900 px-6 py-3 rounded-xl border border-gray-600 shadow-inner">
+                                <span class="text-blue-400 w-1/3">2. Value Update<br><span
+                                        class="text-[10px] text-gray-400">(Critic)</span></span>
+                                <span class="w-2/3 text-right">$$ d\theta_v \leftarrow d\theta_v + \partial \frac{(R_t -
+                                    V_{\theta_v}(s_t))^2}{\partial \theta_v} $$</span>
+                            </div>
+
+                            <!-- Entropy Loss -->
+                            <div
+                                class="flex items-center justify-between w-[90%] bg-gray-900 px-6 py-3 rounded-xl border border-gray-600 shadow-inner border-dashed">
+                                <span class="text-pink-400 w-1/3">3. Entropy Bonus<br><span
+                                        class="text-[10px] text-gray-400">(Exploration)</span></span>
+                                <span class="w-2/3 text-right">$$ d\theta \leftarrow d\theta + c \cdot \nabla_{\theta'}
+                                    H(\pi_{\theta'}(s_t)) $$</span>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 14: Entropy Bonus -->
+        <div class="slide" data-slide="14">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 70%;"></div>
+                </div>
+                <div class="mb-4 text-blue-600 font-bold text-lg">3. Deep Dive into A3C Math</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">14. Entropy Bonus: 탐험(Exploration)의 강제</h2>
+                <div class="grid grid-cols-2 gap-10 items-center h-full">
+                    <div class="space-y-6">
+                        <p
+                            class="text-xl text-gray-700 leading-relaxed font-bold bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                            A3C 논문이 안정적인 학습을 위해 도입한 비장의 무기입니다.
+                        </p>
+                        <div class="bg-pink-50 p-6 border-l-8 border-pink-500 rounded-r-2xl shadow-sm space-y-4">
+                            <h4 class="font-extrabold text-pink-800 text-lg">조기 수렴(Premature Convergence) 방지</h4>
+                            <p class="text-base text-gray-700 font-medium leading-relaxed">
+                                에이전트가 운 좋게 10점을 받는 행동을 찾으면, 그 행동 확률을 100%로 굳혀버리고 더 이상 탐험하지 않습니다(Local Minima).<br><br>
+                                이를 막기 위해 <strong>"행동 확률 분포가 평평할수록(불확실할수록 = 엔트로피가 높을수록) 보너스 점수를 주는 수식($\beta \nabla
+                                    H$)"</strong>을 추가하여, 끝까지 다양한 행동을 시도하도록 강제합니다.
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="native-graphic h-full min-h-[350px] relative p-8 bg-white border border-gray-200 shadow-md rounded-3xl flex flex-col justify-center items-center gap-8">
+                        <div class="flex justify-around w-full items-end h-[150px] border-b-2 border-gray-300 pb-2">
+                            <!-- Low Entropy -->
+                            <div class="flex flex-col items-center gap-1 w-1/3">
+                                <span class="text-[10px] font-bold text-red-600">엔트로피 낮음 (보너스 0)</span>
+                                <div class="flex items-end gap-1 h-[100px]">
+                                    <div class="w-6 bg-red-400 rounded-t-sm" style="height: 10%;"></div>
+                                    <div class="w-6 bg-red-600 rounded-t-sm shadow-md" style="height: 90%;"></div>
+                                    <div class="w-6 bg-red-400 rounded-t-sm" style="height: 0%;"></div>
+                                </div>
+                                <span class="text-xs font-bold text-gray-500 mt-2">1개 행동만 고집</span>
+                            </div>
+
+                            <span class="text-4xl font-extrabold text-gray-300 mb-6">VS</span>
+
+                            <!-- High Entropy -->
+                            <div class="flex flex-col items-center gap-1 w-1/3">
+                                <span
+                                    class="text-[10px] font-extrabold text-emerald-600 bg-emerald-100 px-2 rounded">엔트로피
+                                    높음 (보너스 지급!)</span>
+                                <div class="flex items-end gap-1 h-[100px]">
+                                    <div class="w-6 bg-emerald-500 rounded-t-sm" style="height: 33%;"></div>
+                                    <div class="w-6 bg-emerald-500 rounded-t-sm" style="height: 34%;"></div>
+                                    <div class="w-6 bg-emerald-500 rounded-t-sm" style="height: 33%;"></div>
+                                </div>
+                                <span class="text-xs font-bold text-gray-500 mt-2">고르게 고민 중</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 15: Worker Loop -->
+        <div class="slide" data-slide="15">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 75%;"></div>
+                </div>
+                <div class="mb-4 text-blue-600 font-bold text-lg">3. Deep Dive into A3C Math</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">15. Worker의 학습 루프 (Step-by-step)</h2>
+                <div class="flex flex-col gap-6 h-full justify-center">
+                    <p
+                        class="text-xl text-gray-700 font-bold bg-white p-5 rounded-xl border border-gray-200 shadow-sm text-center w-[90%] mx-auto">
+                        개별 워커(Worker) 하나가 실제로 어떻게 동작하는지 순서대로 살펴봅시다.
+                    </p>
+
+                    <div
+                        class="native-graphic w-full flex-grow bg-slate-50 border-2 border-slate-200 p-8 rounded-3xl flex items-center justify-center shadow-inner relative">
+                        <div class="flex items-center w-full justify-between">
+                            <!-- Step 1 -->
+                            <div
+                                class="bg-white p-4 rounded-xl border-2 border-blue-300 shadow-md text-center w-[22%] relative">
+                                <span
+                                    class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-blue-500 text-white font-bold w-8 h-8 rounded-full flex items-center justify-center">1</span>
+                                <span class="text-3xl block mt-2 mb-2">📥</span>
+                                <h5 class="font-extrabold text-blue-800 text-sm mb-1">Sync</h5>
+                                <p class="text-[10px] text-gray-600 font-medium">글로벌 뇌($\theta$)의 최신 파라미터를 복사하여 내
+                                    뇌($\theta'$)에 붙여넣기</p>
+                            </div>
+                            <span class="text-2xl text-gray-400 font-bold">➔</span>
+
+                            <!-- Step 2 -->
+                            <div
+                                class="bg-white p-4 rounded-xl border-2 border-emerald-300 shadow-md text-center w-[22%] relative">
+                                <span
+                                    class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-emerald-500 text-white font-bold w-8 h-8 rounded-full flex items-center justify-center">2</span>
+                                <span class="text-3xl block mt-2 mb-2">🕹️</span>
+                                <h5 class="font-extrabold text-emerald-800 text-sm mb-1">Play</h5>
+                                <p class="text-[10px] text-gray-600 font-medium">자신의 환경에서 최대 $t_{max}$ (예: 5) 번 행동을 수행하며
+                                    데이터 수집</p>
+                            </div>
+                            <span class="text-2xl text-gray-400 font-bold">➔</span>
+
+                            <!-- Step 3 -->
+                            <div
+                                class="bg-white p-4 rounded-xl border-2 border-purple-300 shadow-md text-center w-[22%] relative">
+                                <span
+                                    class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-purple-500 text-white font-bold w-8 h-8 rounded-full flex items-center justify-center">3</span>
+                                <span class="text-3xl block mt-2 mb-2">🧮</span>
+                                <h5 class="font-extrabold text-purple-800 text-sm mb-1">Compute</h5>
+                                <p class="text-[10px] text-gray-600 font-medium">모은 데이터로 n-step Return $R_t$와 각 Loss의
+                                    기울기(Gradient) $d\theta$ 계산</p>
+                            </div>
+                            <span class="text-2xl text-gray-400 font-bold">➔</span>
+
+                            <!-- Step 4 -->
+                            <div
+                                class="bg-white p-4 rounded-xl border-2 border-rose-300 shadow-md text-center w-[22%] relative transform scale-110">
+                                <span
+                                    class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-rose-500 text-white font-bold w-8 h-8 rounded-full flex items-center justify-center">4</span>
+                                <span class="text-3xl block mt-2 mb-2">🚀</span>
+                                <h5 class="font-extrabold text-rose-800 text-sm mb-1">Async Update</h5>
+                                <p class="text-[10px] text-gray-600 font-medium font-bold">계산된 기울기를 글로벌 뇌($\theta$)에
+                                    <strong>락(Lock) 없이 쏴버림!</strong> (1번으로 복귀)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== PART 4: Experiments & Legacy ==================== -->
+
+        <!-- 슬라이드 16: CPU의 승리 -->
+        <div class="slide" data-slide="16">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 80%;"></div>
+                </div>
+                <div class="mb-4 text-indigo-600 font-bold text-lg">4. Experiments & Legacy</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">16. 하드웨어 패러다임: 멀티 코어 CPU의 승리</h2>
+                <div class="grid grid-cols-2 gap-10 h-full items-center">
+                    <div class="space-y-6">
+                        <p
+                            class="text-xl text-gray-700 leading-relaxed font-bold bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                            비싼 GPU가 없어도 최고 성능의 강화학습이 가능해졌습니다.
+                        </p>
+                        <div class="bg-indigo-50 p-6 border-l-8 border-indigo-500 rounded-r-2xl shadow-sm space-y-4">
+                            <h4 class="font-extrabold text-indigo-800 text-lg">Standard Multi-core CPU</h4>
+                            <p class="text-base text-gray-700 font-medium leading-relaxed">
+                                DQN은 학습을 위해 최상급 GPU가 필수적이었습니다. 하지만 A3C는 오직 <strong>표준 멀티 코어 CPU 1대(16코어)</strong>만으로 비동기
+                                스레드를 돌려 DQN의 GPU 학습 속도를 압도적으로 발라버렸습니다.<br>➔ <strong>RL 연구의 민주화(대중화)</strong>에 엄청난 기여를
+                                했습니다.
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="native-graphic min-h-[350px] relative bg-white border border-gray-200 shadow-md p-8 rounded-3xl flex flex-col justify-center items-center gap-6">
+                        <div class="flex justify-around w-full items-center">
+                            <div class="flex flex-col items-center opacity-40">
+                                <div class="text-7xl drop-shadow-md">🖥️🔥</div>
+                                <span
+                                    class="bg-red-100 text-red-800 px-3 py-1 rounded-lg text-sm font-extrabold mt-4 border border-red-300 shadow-sm">비싼
+                                    단일 GPU (DQN)</span>
+                            </div>
+                            <span class="text-4xl text-gray-300 font-extrabold">VS</span>
+                            <div class="flex flex-col items-center transform scale-110">
+                                <div class="text-7xl drop-shadow-lg">💻⚡</div>
+                                <span
+                                    class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-base font-extrabold mt-4 shadow-lg border-2 border-indigo-400">일반
+                                    16코어 CPU (A3C)</span>
+                            </div>
+                        </div>
+                        <p class="text-center font-bold text-gray-500 mt-2 bg-gray-100 px-4 py-1 rounded">"GPU 없이 CPU만으로
+                            절반의 시간에 SOTA 달성!"</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 17: 아타리 벤치마크 -->
+        <div class="slide" data-slide="17">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 85%;"></div>
+                </div>
+                <div class="mb-4 text-indigo-600 font-bold text-lg">4. Experiments & Legacy</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">17. 벤치마크: Atari 2600 (DQN과의 비교)</h2>
+                <div class="grid grid-cols-2 gap-10 h-full items-center">
+                    <div class="space-y-6">
+                        <p
+                            class="text-xl text-gray-700 leading-relaxed font-bold bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                            성능과 훈련 시간 모두에서 압도적인 효율성을 증명했습니다.
+                        </p>
+                        <ul class="space-y-4 text-base text-gray-600 font-medium px-2">
+                            <li class="flex items-center gap-3"><span class="text-2xl">⏱️</span> <strong>시간 단축:</strong>
+                                GPU를 쓴 DQN이 8일 걸리던 학습을, A3C는 CPU만으로 <strong>절반인 4일</strong> 만에 달성했습니다.</li>
+                            <li class="flex items-center gap-3"><span class="text-2xl">🏆</span> <strong>성능 향상:</strong>
+                                57개의 아타리 게임 대부분에서 DQN, Double DQN, Dueling DQN 등 기존 SOTA를 모두 뛰어넘는 최고 점수를 기록했습니다.</li>
+                        </ul>
+                    </div>
+                    <!-- Bar Chart -->
+                    <div
+                        class="native-graphic h-full min-h-[350px] flex-col p-8 items-start justify-end pb-12 pl-14 bg-white border border-gray-200 shadow-md relative rounded-3xl">
+                        <div class="absolute left-12 top-10 bottom-12 w-1 bg-gray-300"></div>
+                        <div class="absolute left-12 bottom-12 right-10 h-1 bg-gray-300"></div>
+                        <span class="absolute top-4 left-4 text-sm font-extrabold text-gray-500">Training Time (Days) to
+                            reach Baseline</span>
+
+                        <div class="flex items-end justify-center gap-16 w-full h-[200px] pb-0 relative z-10">
+                            <!-- DQN -->
+                            <div class="flex flex-col items-center gap-3 w-24">
+                                <span class="text-sm font-bold text-red-500">8 Days (GPU)</span>
+                                <div class="w-full bg-red-400 rounded-t-lg shadow-sm h-[180px]"></div>
+                                <span class="text-xs font-bold text-gray-700 text-center">DQN</span>
+                            </div>
+                            <!-- A3C -->
+                            <div class="flex flex-col items-center gap-3 w-28 transform scale-110">
+                                <span class="text-base font-extrabold text-emerald-600 animate-pulse">4 Days!
+                                    (CPU)</span>
+                                <div class="w-full bg-emerald-500 rounded-t-xl shadow-lg relative h-[90px]">
+                                    <span
+                                        class="absolute -right-16 top-1/2 transform -translate-y-1/2 text-xs font-extrabold text-emerald-800 bg-emerald-100 px-2 py-1 rounded-lg shadow-sm border border-emerald-300">초고속
+                                        수렴</span>
+                                </div>
+                                <span
+                                    class="text-sm font-extrabold text-emerald-900 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-300 text-center shadow-sm">A3C</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 18: 스케일링 -->
+        <div class="slide" data-slide="18">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 90%;"></div>
+                </div>
+                <div class="mb-4 text-indigo-600 font-bold text-lg">4. Experiments & Legacy</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">18. 스케일링의 마법 (Linear Speedup)</h2>
+                <div class="grid grid-cols-2 gap-10 h-full items-center">
+                    <div class="space-y-6">
+                        <p
+                            class="text-xl text-gray-700 leading-relaxed font-bold bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                            워커(Thread) 수를 늘릴수록 학습 속도가 정비례(Linear)하여 빨라집니다.
+                        </p>
+                        <div class="bg-blue-50 p-6 border-l-8 border-blue-500 rounded-r-2xl shadow-sm space-y-4">
+                            <p class="text-base text-gray-700 font-medium leading-relaxed">
+                                일반적으로 멀티스레드 프로그래밍은 Lock 걸림 현상 때문에 코어 수를 늘린다고 속도가 정비례해서 오르지 않습니다.<br><br>
+                                하지만 A3C는 <strong>Lock-free 비동기 업데이트 구조</strong>와 <strong>탐험의 다양성(여러 워커가 각기 다른 경험
+                                    수집)</strong> 시너지 덕분에 스레드가 늘어나는 만큼 거의 완벽하게 학습 속도가 비례해서 단축되는 기적을 보여주었습니다.
+                                (Super-linear 현상도 관찰됨)
+                            </p>
+                        </div>
+                    </div>
+                    <!-- Line Chart -->
+                    <div
+                        class="native-graphic h-full min-h-[350px] flex-col p-8 items-start justify-end pb-12 pl-14 bg-white border border-gray-200 shadow-md relative rounded-3xl">
+                        <div class="absolute left-12 top-10 bottom-12 w-1 bg-gray-300"></div>
+                        <div class="absolute left-12 bottom-12 right-10 h-1 bg-gray-300"></div>
+                        <span class="absolute top-4 left-4 text-sm font-extrabold text-gray-500">Training Speed
+                            (Speedup)</span>
+                        <span class="absolute bottom-4 right-4 text-sm font-extrabold text-gray-500">Number of Worker
+                            Threads</span>
+
+                        <svg class="absolute inset-0 w-full h-full pointer-events-none z-10" viewBox="0 0 100 100"
+                            preserveAspectRatio="none">
+                            <!-- Ideal Linear Line -->
+                            <path d="M 20 80 L 80 20" fill="none" stroke="#9ca3af" stroke-width="2"
+                                stroke-dasharray="4,4" vector-effect="non-scaling-stroke" />
+                            <!-- A3C Speedup Curve -->
+                            <path d="M 20 80 Q 50 50 80 15" fill="none" stroke="#3b82f6" stroke-width="4"
+                                vector-effect="non-scaling-stroke" />
+                        </svg>
+
+                        <span
+                            class="absolute top-[20%] right-[10%] bg-blue-100 text-blue-800 font-extrabold px-3 py-1 rounded shadow-sm border border-blue-300 text-xs transform -rotate-12">
+                            스레드를 16개 쓰면<br>16배 빨라짐! 🚀
+                        </span>
+                        <span
+                            class="absolute bottom-[40%] right-[20%] text-[10px] font-bold text-gray-400 transform -rotate-45">Ideal
+                            Linear</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 19: A3C에서 A2C로 -->
+        <div class="slide" data-slide="19">
+            <div class="glass-card">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 95%;"></div>
+                </div>
+                <div class="mb-4 text-indigo-600 font-bold text-lg">4. Experiments & Legacy</div>
+                <h2 class="text-3xl font-extrabold mb-6 text-gray-800">19. A3C에서 A2C로의 진화 (Legacy)</h2>
+                <div class="grid grid-cols-2 gap-10 items-center h-full">
+                    <div class="space-y-6">
+                        <div class="bg-gray-100 p-6 rounded-2xl border border-gray-300 shadow-sm space-y-3">
+                            <h4 class="font-extrabold text-gray-700 text-xl">A3C의 위대함</h4>
+                            <p class="text-base text-gray-600 font-medium leading-relaxed">
+                                '비동기 병렬 처리 + n-step Return + Actor-Critic + Entropy' 라는 <strong>현대 강화학습의 마스터피스
+                                    조합</strong>을 완성해 냈습니다.
+                            </p>
+                        </div>
+                        <div
+                            class="bg-indigo-50 p-6 border-l-8 border-indigo-500 rounded-r-2xl shadow-sm space-y-3 transform scale-105">
+                            <h4 class="font-extrabold text-indigo-900 text-xl">그러나 다시 동기식(A2C)으로...</h4>
+                            <p class="text-base text-gray-800 font-bold leading-relaxed">
+                                CPU 중심의 A3C는 훗날 모델이 거대해지면서 한계에 부딪힙니다. OpenAI 연구진은 이 위대한 A3C 구조를 그대로 유지하되,
+                                <strong>비동기(Asynchronous)를 동기(Synchronous)로 바꿔 GPU의 배치(Batch) 처리 효율을 극대화한 A2C</strong>를
+                                발표하게 되고, 이것이 PPO로 이어집니다.
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="native-graphic h-full min-h-[350px] relative bg-white border border-gray-200 shadow-md p-8 rounded-3xl flex flex-col justify-center items-center gap-6">
+                        <div class="flex items-center justify-around w-full relative z-10">
+                            <div class="flex flex-col items-center">
+                                <span
+                                    class="bg-emerald-100 text-emerald-800 border-4 border-emerald-400 font-extrabold px-6 py-4 rounded-full text-2xl shadow-md">A3C</span>
+                                <span class="text-xs font-bold text-gray-500 mt-2 bg-white px-2 rounded">2016
+                                    (DeepMind)<br>비동기 / CPU</span>
+                            </div>
+
+                            <span class="text-4xl text-gray-300 font-extrabold">➔</span>
+
+                            <div class="flex flex-col items-center transform scale-110">
+                                <span
+                                    class="bg-blue-100 text-blue-800 border-4 border-blue-500 font-extrabold px-6 py-4 rounded-full text-2xl shadow-lg animate-pulse">A2C</span>
+                                <span
+                                    class="text-xs font-bold text-gray-500 mt-2 bg-white px-2 rounded text-center">2017
+                                    (OpenAI)<br>동기 / GPU</span>
+                            </div>
+
+                            <span class="text-4xl text-gray-300 font-extrabold">➔</span>
+
+                            <div class="flex flex-col items-center">
+                                <span
+                                    class="bg-indigo-100 text-indigo-800 border-4 border-indigo-400 font-extrabold px-6 py-4 rounded-full text-2xl shadow-md">PPO</span>
+                            </div>
+                        </div>
+                        <p class="text-sm font-bold text-gray-500 mt-4 border-t pt-4 w-[80%] text-center">강화학습 진화 트리의 가장
+                            위대한 조상 🌳</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 슬라이드 20: Conclusion -->
+        <div class="slide" data-slide="20">
+            <div class="glass-card justify-center items-center text-center">
+                <div class="progress-container">
+                    <div class="progress-bar" style="width: 100%;"></div>
+                </div>
+                <h2
+                    class="text-6xl font-extrabold mb-10 text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-blue-600 italic tracking-tighter">
+                    "The Power of Parallel Exploration"</h2>
+                <div class="max-w-4xl text-2xl text-gray-700 space-y-10 font-bold leading-relaxed">
+                    <p>A3C는 무거운 메모리(Replay Buffer)의 족쇄를 끊어내고,<br><strong>수많은 에이전트의 동시다발적 경험을 병렬로
+                            엮어내는(Asynchronous)</strong><br>천재적인 발상으로 딥 러닝 강화학습의 새로운 시대를 열었습니다.</p>
+                    <div class="h-2 w-40 bg-gradient-to-r from-emerald-400 to-blue-500 mx-auto rounded-full my-12">
+                    </div>
+                    <h2 class="font-extrabold text-gray-800 tracking-widest uppercase text-6xl">Thank You</h2>
+                </div>
+            </div>
+        </div>
+
+        <!-- 네비게이션 -->
+        <div id="navBar" class="fixed bottom-10 left-0 right-0 flex justify-center items-center gap-12 z-50">
+            <button id="prevBtn" class="nav-btn group">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                    class="group-hover:text-emerald-500 transition-colors">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+            </button>
+            <div id="pageIndicator"
+                class="px-8 py-3 bg-white/95 backdrop-blur-md rounded-full border border-gray-200 font-extrabold text-gray-500 tracking-tighter shadow-md text-xl mx-auto">
+                <span id="currentPage" class="text-teal-600 text-2xl">1</span> <span class="mx-2">/</span> 20
+            </div>
+            <button id="nextBtn" class="nav-btn group">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                    class="group-hover:text-blue-500 transition-colors">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 20;
+
+        const showSlide = (n) => {
+            document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+            const target = document.querySelector(`.slide[data-slide="${n}"]`);
+            if (target) {
+                target.classList.add('active');
+                document.getElementById('currentPage').innerText = n;
+                target.querySelector('.glass-card').scrollTop = 0;
+            }
+        };
+
+        const next = () => { if (currentSlide < totalSlides) { currentSlide++; showSlide(currentSlide); } };
+        const prev = () => { if (currentSlide > 1) { currentSlide--; showSlide(currentSlide); } };
+
+        document.getElementById('nextBtn').addEventListener('click', next);
+        document.getElementById('prevBtn').addEventListener('click', prev);
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') next();
+            if (e.key === 'ArrowLeft') prev();
+        });
+
+        // 최초 진입 시 레이아웃 반영
+        showSlide(currentSlide);
+    </script>
+</body>
+
+</html>
