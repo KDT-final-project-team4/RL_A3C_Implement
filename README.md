@@ -2,6 +2,31 @@
 
 PyTorch 기반으로 **REINFORCE + Baseline**과 **A3C(Asynchronous Advantage Actor-Critic)** 를 직접 구현하고 비교 실험한 프로젝트입니다.
 
+<details>
+<summary><h2>👓 Vanilla REINFORCE가 아닌 REINFORCE + Baseline와 비교한 이유! </h2></summary>
+
+### 1. 실험 목적
+"이 실험의 목적은 알고리즘의 학습 메커니즘 차이가 성능에 미치는 영향을 보는 것이었습니다."
+
+### 2. 변수 통제 관점
+  - Vanilla REINFORCE와 A3C를 비교하면 차이점이 너무 많아져요.
+    - 네트워크 구조 (Actor only vs ActorCritic)
+    - return 계산 방식 (Monte Carlo vs n-step)
+    - 병렬성 (단일 vs 4 Worker)
+
+이 중 어떤 요소가 성능 차이를 만들었는지 구분이 안 됩니다.
+
+### 3. 통제한 변수
+REINFORCE + Baseline을 쓰면 네트워크 구조를 ActorCritic으로 통일할 수 있어요.
+그러면 남는 차이는
+
+- episode 단위 vs n-step 업데이트
+- 단일 에이전트 vs 비동기 병렬
+  
+이 두 가지만 남아서 A3C의 핵심 기여를 분리해 볼 수 있습니다.
+
+</details>
+
 ---
 
 ## 목차
