@@ -155,12 +155,11 @@ Softmax              │
 ### 수치 요약
 
 
-### 시각화
+### 결과 시각화
 
-```
-진행중..
-results/reinforce_vs_a3c.png
-```
+A3C는 본래 multiprocessing 기반으로 설계된 알고리즘인데, Python GIL 제약으로 threading을 사용하면 비동기 병렬의 이점을 살리지 못했습니다. 그 결과 gradient 간섭으로 인한 학습 불안정이 발생하고, 단일 에이전트인 REINFORCE보다 성능이 낮게 나타났습니다. 실전에서는 multiprocessing 전환이나 PPO 같은 배치 기반 알고리즘이 권장되는 이유입니다.!
+
+<img src="./reinforce_vs_a3c.png">
 
 ---
 
