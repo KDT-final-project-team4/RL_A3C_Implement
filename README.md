@@ -158,6 +158,7 @@ Softmax              │
 ### 시각화
 
 ```
+진행중..
 results/reinforce_vs_a3c.png
 ```
 
